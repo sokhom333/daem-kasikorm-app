@@ -214,8 +214,16 @@ if st.button(btn_text, type="primary", use_container_width=True):
                 st.markdown(result)
                 
                 st.divider()
-                st.subheader("៣. នាំចេញវេជ្ជបញ្ជា/ឯកសារណែនាំ (Export)")
+                # ផ្នែកដែលបានបន្ថែមថ្មី៖ ចម្លង និងទាញយក
+                st.subheader("៣. ចម្លង និង នាំចេញឯកសារ (Copy & Export)")
                 
+                # ប្រអប់សម្រាប់ Copy
+                st.info("💡 ចុចលើសញ្ញា 📋 នៅជ្រុងខាងស្តាំខាងលើនៃប្រអប់កូដខាងក្រោម ដើម្បីចម្លងអត្ថបទទាំងអស់ (Copy យកទៅ Paste ក្នុង Telegram)។")
+                st.code(result, language="markdown")
+                
+                st.write("") # ដកឃ្លាបន្តិច
+                
+                # ប៊ូតុង Download (នៅរក្សាទុកដដែល)
                 st.download_button(
                     label="📥 ទាញយកឯកសារ (Text File)",
                     data=f"ប្រភេទ៖ {input_type}\nរោគសញ្ញា៖ {symptoms_input}\n\nលទ្ធផលវិភាគ៖\n{result}",
