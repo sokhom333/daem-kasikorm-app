@@ -268,7 +268,7 @@ def build_vet_guardrails(species_group: str, extra_info: str, vaccine: str, mort
 
 
 # ==========================================
-# ៦. អនុគមន៍ហៅ AI (កម្រិតស្តង់ដារវិនិច្ឆ័យខ្ពស់)
+# ៦. អនុគមន៍ហៅ AI (ជួសជុលបញ្ហា API v1 រួចរាល់)
 # ==========================================
 def analyze_with_ai(payload: dict, images: list, key: str, mode: str) -> str:
     client = genai.Client(api_key=key)
@@ -392,14 +392,16 @@ def analyze_with_ai(payload: dict, images: list, key: str, mode: str) -> str:
 ### 🛡️ ៥. វិធានការការពារ និងការគ្រប់គ្រងដី/ទឹក
 """
 
-    contents_list = [prompt]
+    # បញ្ចូល system_instruction ទៅខាងលើ prompt ផ្ទាល់ ដើម្បីការពារ Error API v1
+    full_prompt = f"{system_instruction}\n\n{prompt}"
+    contents_list = [full_prompt]
     contents_list.extend(images)
+
     response = client.models.generate_content(
         model="gemini-2.5-flash",
         contents=contents_list,
         config=types.GenerateContentConfig(
-            system_instruction=system_instruction,
-            temperature=0.1,  # កម្រិតទាបបំផុតដើម្បីភាពសុក្រឹត និងមិនបង្កើតព័ត៌មានផ្តេសផ្តាស
+            temperature=0.1,
         ),
     )
     return response.text
