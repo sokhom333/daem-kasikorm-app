@@ -226,16 +226,35 @@ SPECIES_DISEASE_KB = {
 }
 
 
+def detect_species_group(animal_text: str) -> str:
+    """ចាប់ក្រុមសត្វដោយស្វ័យប្រវត្តិពីឈ្មោះសត្វដែលអ្នកប្រើវាយបញ្ចូលដោយដៃ"""
+    t = (animal_text or "").lower().strip()
+    if any(k in t for k in ["ទា", "duck"]):
+        return "ទា"
+    if any(k in t for k in ["មាន់", "chicken"]):
+        return "មាន់"
+    if any(k in t for k in ["ជ្រូក", "pig", "swine", "hog"]):
+        return "ជ្រូក"
+    if any(k in t for k in ["គោ", "ក្របី", "cattle", "cow", "buffalo"]):
+        return "គោ/ក្របី"
+    if any(k in t for k in ["ត្រី", "កង្កែប", "អន្ទង់", "បង្កង", "ក្តាម", "fish", "frog", "eel", "shrimp"]):
+        return "ត្រី/កង្កែប"
+    if any(k in t for k in ["ឆ្កែ", "សុនខ", "ឆ្មា", "dog", "cat"]):
+        return "ឆ្កែ/ឆ្មា"
+    return "សត្វផ្សេងៗ"
+
+
 def get_species_knowledge(species_group: str) -> str:
     return SPECIES_DISEASE_KB.get(
         species_group,
-        "សូមវិភាគដោយបែងចែកច្បាស់លាស់រវាង វីរុស បាក់តេរី ប៉ារ៉ាស៊ីត និងកង្វះសារធាតុចិញ្ចឹម ឱ្យត្រូវតាមប្រភេទសត្វជាក់ស្តែង។"
+        "សូមវិភាគដោយបែងចែកច្បាស់លាស់រវាង វីរុស បាក់តេរី ប៉ារ៉ាស៊ីត ផ្សិត និងកង្វះសារធាតុចិញ្ចឹម ឱ្យត្រឹមត្រូវតាមប្រភេទសត្វដែលអ្នកប្រើបានវាយបញ្ចូល។"
     )
 
 
-def build_vet_guardrails(species_group: str, extra_info: str, vaccine: str, mortality: str) -> str:
+def build_vet_guardrails(species_group: str, target_type: str, extra_info: str, vaccine: str, mortality: str) -> str:
     """បង្កើតច្បាប់សុវត្ថិភាពស្វ័យប្រវត្តិតាមស្ថានភាពសត្វ"""
     rules = []
+    target_lower = (target_type or "").lower()
     extra_lower = (extra_info or "").lower()
     mort_lower = (mortality or "").lower()
 
@@ -251,11 +270,11 @@ def build_vet_guardrails(species_group: str, extra_info: str, vaccine: str, mort
 
     if species_group == "ត្រី/កង្កែប":
         rules.append(
-            "សត្វទឹក (ត្រី/កង្កែប)៖ ហាមណែនាំវិធីចាក់សឺរ៉ាំង! ត្រូវណែនាំវិធីលាយថ្នាំជាមួយចំណី (គិតជា g/kg ចំណី ឬ g/100kg ត្រី) រួមជាមួយវិធីសម្លាប់មេរោគ និងកែគុណភាពទឹក (កំបោរ អំបិល អ៊ីយ៉ូដ ឬ BKC)។"
+            "សត្វទឹក (ត្រី/កង្កែប/អន្ទង់)៖ ហាមណែនាំវិធីចាក់សឺរ៉ាំង! ត្រូវណែនាំវិធីលាយថ្នាំជាមួយចំណី (គិតជា g/kg ចំណី ឬ g/100kg ត្រី) រួមជាមួយវិធីសម្លាប់មេរោគ និងកែគុណភាពទឹក (កំបោរ អំបិល អ៊ីយ៉ូដ ឬ BKC)។"
         )
-    elif species_group in ["មាន់", "ទា"]:
+    elif species_group in ["មាន់", "ទា"] or any(k in target_lower for k in ["ក្ងាន", "ក្រួច", "ព្រាប", "បក្សី"]):
         rules.append(
-            "សត្វបក្សី (មាន់/ទា)៖ ត្រូវបញ្ជាក់ទាំងវិធីលាយទឹកផឹក/លាយចំណីសម្រាប់ព្យាបាលទាំងហ្វូង (គិតជា g ឬ ml ក្នុងទឹក ១ លីត្រ) និងវិធីចាក់សម្រាប់ក្បាលឈឺធ្ងន់។"
+            "សត្វបក្សី៖ ត្រូវបញ្ជាក់ទាំងវិធីលាយទឹកផឹក/លាយចំណីសម្រាប់ព្យាបាលទាំងហ្វូង (គិតជា g ឬ ml ក្នុងទឹក ១ លីត្រ) និងវិធីចាក់សម្រាប់ក្បាលឈឺធ្ងន់។"
         )
     elif species_group == "ឆ្កែ/ឆ្មា":
         rules.append(
@@ -268,7 +287,7 @@ def build_vet_guardrails(species_group: str, extra_info: str, vaccine: str, mort
 
 
 # ==========================================
-# ៦. អនុគមន៍ហៅ AI (ជួសជុលបញ្ហា API v1 រួចរាល់)
+# ៦. អនុគមន៍ហៅ AI
 # ==========================================
 def analyze_with_ai(payload: dict, images: list, key: str, mode: str) -> str:
     client = genai.Client(api_key=key)
@@ -277,7 +296,11 @@ def analyze_with_ai(payload: dict, images: list, key: str, mode: str) -> str:
         species_group = payload["species_group"]
         species_kb = get_species_knowledge(species_group)
         guardrails = build_vet_guardrails(
-            species_group, payload["extra_info"], payload["vaccine"], payload["mortality"]
+            species_group,
+            payload["target_type"],
+            payload["extra_info"],
+            payload["vaccine"],
+            payload["mortality"],
         )
 
         system_instruction = (
@@ -289,7 +312,7 @@ def analyze_with_ai(payload: dict, images: list, key: str, mode: str) -> str:
         prompt = f"""សូមធ្វើការវិភាគករណីសត្វខាងក្រោមជាភាសាខ្មែរឱ្យច្បាស់លាស់ និងត្រឹមត្រូវតាមស្តង់ដារពេទ្យសត្វ៖
 
 === ទិន្នន័យករណីអ្នកជំងឺសត្វ ===
-- ប្រភេទសត្វ៖ {payload['target_type']} (ក្រុម៖ {species_group})
+- ប្រភេទ ឬឈ្មោះសត្វ៖ {payload['target_type']} (ក្រុមស្វ័យប្រវត្តិ៖ {species_group})
 - ទម្ងន់ / អាយុ / ស្ថានភាព៖ {payload['extra_info'] or 'មិនបានបញ្ជាក់'}
 - ប្រវត្តិចាក់វ៉ាក់សាំង៖ {payload['vaccine']}
 - ចំនួនសត្វឈឺ និងងាប់៖ {payload['mortality'] or 'មិនបានបញ្ជាក់'}
@@ -392,7 +415,6 @@ def analyze_with_ai(payload: dict, images: list, key: str, mode: str) -> str:
 ### 🛡️ ៥. វិធានការការពារ និងការគ្រប់គ្រងដី/ទឹក
 """
 
-    # បញ្ចូល system_instruction ទៅខាងលើ prompt ផ្ទាល់ ដើម្បីការពារ Error API v1
     full_prompt = f"{system_instruction}\n\n{prompt}"
     contents_list = [full_prompt]
     contents_list.extend(images)
@@ -408,44 +430,38 @@ def analyze_with_ai(payload: dict, images: list, key: str, mode: str) -> str:
 
 
 # ==========================================
-# ៧. ផ្ទាំងបញ្ចូលទិន្នន័យស្នូលសម្រាប់វិនិច្ឆ័យសុក្រឹត
+# ៧. ផ្ទាំងបញ្ចូលទិន្នន័យស្នូល (សរសេរឈ្មោះសត្វដោយដៃ)
 # ==========================================
 with st.container():
     if app_mode == "🩺 ផ្នែកពេទ្យសត្វ":
         st.subheader("១. បញ្ចូលព័ត៌មានស្នូល និងរោគសញ្ញាសត្វ")
         c1, c2 = st.columns(2)
-        species_group = c1.selectbox(
-            "ជ្រើសរើសក្រុមសត្វ (សំខាន់សម្រាប់ភាពត្រឹមត្រូវ)៖",
-            ["ទា", "មាន់", "ជ្រូក", "គោ/ក្របី", "ត្រី/កង្កែប", "ឆ្កែ/ឆ្មា", "ពពែ/សត្វផ្សេងៗ"],
-            key="species_select",
-        )
-        specific_type = c2.text_input(
-            "បញ្ជាក់ពូជ/ប្រភេទលម្អិត (ស្រេចចិត្ត)៖",
-            placeholder="ឧ. ទាសំប៉ៅ, មាន់ស្រែ, ជ្រូកកូន, កង្កែប...",
+        input_type = c1.text_input(
+            "ប្រភេទ ឬឈ្មោះសត្វ (វាយបញ្ចូលដោយដៃ)៖",
+            placeholder="ឧ. ទាសំប៉ៅ, មាន់ស្រែ, ជ្រូក, គោ, ពពែ, ត្រីអណ្ដែង, កង្កែប...",
             key="animal_input",
         )
-        input_type = specific_type.strip() if specific_type.strip() else species_group
-
-        c3, c4 = st.columns(2)
-        extra_info = c3.text_input(
+        extra_info = c2.text_input(
             "ទម្ងន់ / អាយុ / ស្ថានភាព៖",
             placeholder="ឧ. ២៥kg, អាយុ ៣ សប្តាហ៍, មេផើម...",
             key="animal_extra",
         )
-        vaccine_status = c4.selectbox(
+        species_group = detect_species_group(input_type)
+
+        c3, c4 = st.columns(2)
+        vaccine_status = c3.selectbox(
             "ប្រវត្តិចាក់វ៉ាក់សាំង៖",
             ["មិនប្រាកដ / មិនដឹង", "មិនទាន់ចាក់វ៉ាក់សាំង", "ចាក់វ៉ាក់សាំងរួចរាល់"],
             key="animal_vaccine",
         )
-
-        c5, c6 = st.columns(2)
-        mortality_info = c5.text_input(
+        mortality_info = c4.text_input(
             "អត្រាឈឺ និងងាប់ក្នុងហ្វូង៖",
             placeholder="ឧ. ឈឺ ១៥/១០០ ក្បាល, ងាប់ ៤ ក្បាលក្នុង ២ ថ្ងៃ",
             key="animal_mortality",
         )
-        stool_feed = c6.text_input(
-            "លាមក និងការស៊ីចំណី៖",
+
+        stool_feed = st.text_input(
+            "លក្ខណៈលាមក និងការស៊ីចំណី៖",
             placeholder="ឧ. រាកបៃតង/ស/ឈាម, អត់ស៊ីចំណី ២ ថ្ងៃ",
             key="animal_stool",
         )
@@ -464,7 +480,7 @@ with st.container():
 
         payload = {
             "species_group": species_group,
-            "target_type": input_type,
+            "target_type": input_type.strip(),
             "extra_info": extra_info,
             "vaccine": vaccine_status,
             "mortality": mortality_info,
@@ -509,7 +525,7 @@ with st.container():
         )
 
         payload = {
-            "target_type": input_type,
+            "target_type": input_type.strip(),
             "extra_info": extra_info,
             "weather_spread": weather_spread,
             "prev_sprays": prev_sprays,
@@ -557,17 +573,17 @@ if st.button(btn_text, type="primary", use_container_width=True):
     if not api_key:
         st.error("⚠ សូមបញ្ចូល API Key នៅក្នុងផ្ទាំងកំណត់ (Sidebar) ឬកំណត់ក្នុង Secrets!")
     elif not input_type.strip():
-        st.warning(f"⚠ សូមបញ្ជាក់ប្រភេទ{'សត្វ' if mode_flag == 'animal' else 'ដំណាំ'}!")
+        st.warning(f"⚠ សូមវាយបញ្ចូលឈ្មោះ{'សត្វ' if mode_flag == 'animal' else 'ដំណាំ'}ជាមុនសិន!")
     elif not symptoms_input.strip() and not all_photos and not payload.get("necropsy", "").strip():
         st.warning("⚠ សូមរៀបរាប់ពីរោគសញ្ញា ឬបញ្ចូលរូបភាពយ៉ាងហោចណាស់មួយ!")
     else:
         with st.spinner("⏳ ប្រព័ន្ធ AI កំពុងផ្ទៀងផ្ទាត់ជំងឺតាមប្រភេទសត្វ និងរៀបចំឈុតផ្សំថ្នាំ..."):
             try:
                 result = analyze_with_ai(payload, optimized_images, api_key, mode_flag)
-                save_history(input_type, symptoms_input or payload.get("necropsy", ""), result, mode_flag)
+                save_history(input_type.strip(), symptoms_input or payload.get("necropsy", ""), result, mode_flag)
                 st.session_state["last_result"] = result
                 st.session_state["last_meta"] = {
-                    "type": input_type,
+                    "type": input_type.strip(),
                     "extra": extra_info,
                     "symptoms": symptoms_input,
                 }
