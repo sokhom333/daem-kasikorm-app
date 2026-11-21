@@ -12,7 +12,7 @@ import datetime
 def init_db():
     conn = sqlite3.connect("vet_clinic.db")
     c = conn.cursor()
-    c.execute('''
+    c.execute("""
         CREATE TABLE IF NOT EXISTS medical_history (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             date TEXT,
@@ -20,8 +20,8 @@ def init_db():
             symptoms TEXT,
             diagnosis TEXT
         )
-    ''')
-    c.execute('''
+    """)
+    c.execute("""
         CREATE TABLE IF NOT EXISTS plant_history (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             date TEXT,
@@ -29,7 +29,7 @@ def init_db():
             symptoms TEXT,
             diagnosis TEXT
         )
-    ''')
+    """)
     conn.commit()
     conn.close()
 
@@ -41,12 +41,12 @@ def save_history(type_name, symptoms, diagnosis, category):
     if category == "animal":
         c.execute(
             "INSERT INTO medical_history (date, animal_type, symptoms, diagnosis) VALUES (?, ?, ?, ?)",
-            (now, type_name, symptoms, diagnosis)
+            (now, type_name, symptoms, diagnosis),
         )
     else:
         c.execute(
             "INSERT INTO plant_history (date, plant_type, symptoms, diagnosis) VALUES (?, ?, ?, ?)",
-            (now, type_name, symptoms, diagnosis)
+            (now, type_name, symptoms, diagnosis),
         )
     conn.commit()
     conn.close()
@@ -74,7 +74,6 @@ def compress_image(uploaded_file):
 # ==========================================
 st.set_page_config(page_title="ប្រព័ន្ធវិភាគ ដើមកសិកម្ម AI", page_icon="🌱", layout="centered")
 
-# រក្សាទុកលទ្ធផលក្នុង Session State កុំឱ្យបាត់ពេលចុច Download ឬ Copy
 if "last_result" not in st.session_state:
     st.session_state["last_result"] = ""
 if "last_meta" not in st.session_state:
@@ -104,11 +103,10 @@ st.markdown("""
 st.title("🌱 ប្រព័ន្ធវិភាគ ដើមកសិកម្ម AI")
 st.markdown(
     "<p style='font-size: 16px; color: #555;'>ប្រព័ន្ធប្រើប្រាស់បញ្ញាសិប្បនិម្មិត (AI) ដើម្បីវិភាគ និងចេញសេចក្តីណែនាំព្យាបាលសត្វ និងដំណាំ។</p>",
-    unsafe_allow_html=True
+    unsafe_allow_html=True,
 )
 st.divider()
 
-# ទាញយក API Key ដោយសុវត្ថិភាព (មិន Error ទោះគ្មាន secrets.toml លើម៉ាស៊ីនក៏ដោយ)
 try:
     api_key = st.secrets.get("GEMINI_API_KEY")
 except Exception:
@@ -151,50 +149,64 @@ with st.sidebar:
         st.caption("មិនទាន់មានប្រវត្តិទេ")
 
 # ==========================================
-# ៥. អនុគមន៍ហៅ AI (បញ្ចូលក្បួនផ្សំថ្នាំលម្អិតតាមក្រុម)
+# ៥. បញ្ជីឈ្មោះថ្នាំក្នុងហាង និង អនុគមន៍ហៅ AI
 # ==========================================
+# 💡 អ្នកអាចវាយបន្ថែម ឬកែឈ្មោះផលិតផលថ្នាំក្នុងហាងរបស់អ្នកនៅទីនេះបានតាមចិត្ត៖
+SHOP_DRUG_CATALOG = """
+- ថ្នាំផ្សះក្រុម A (សម្លាប់បាក់តេរី / Bactericidal):
+  Amoxicillin, Ampicillin, Ceftiofur, Cefquinome, Gentamicin, Colistin, Enrofloxacin, Marbofloxacin, Sulfadiazine + Trimethoprim
+- ថ្នាំផ្សះក្រុម B (បង្អាក់បាក់តេរី / Bacteriostatic):
+  Oxytetracycline, Doxycycline, Florfenicol, Tylosin, Tilmicosin, Lincomycin, Spectinomycin, Tiamulin
+- ថ្នាំបំបាត់ឈឺ / បញ្ចុះកម្ដៅ / រលាក:
+  Analgin, Flunixin, Meloxicam, Ketoprofen, Dexamethasone (ហាមប្រើលើសត្វផើម)
+- ថ្នាំជំនួយ / វីតាមីន / រ៉ែ:
+  ADE B-Complex, Calcium B12, Vitamin C, អេឡិចត្រូលីត (Electrolytes), មេរំលាយអាហារ (Probiotics)
+"""
+
+
 def analyze_with_ai(target_type, extra_info, symptoms, images, key, mode):
     client = genai.Client(api_key=key)
 
     if mode == "animal":
         prompt = f"""អ្នកគឺជាវេជ្ជបណ្ឌិតពេទ្យសត្វជំនាញកម្រិតស្តង់ដារអន្តរជាតិ ប្រចាំហាង «ដើមកសិកម្ម»។
-សូមធ្វើការវិភាគករណីខាងក្រោមជាភាសាខ្មែរឱ្យលម្អិត ច្បាស់លាស់ និងងាយស្រួលអនុវត្ត៖
+សូមធ្វើការវិភាគករណីខាងក្រោមជាភាសាខ្មែរឱ្យខ្លី ច្បាស់លាស់ និងងាយអនុវត្តលើទូរស័ព្ទ៖
 - ប្រភេទសត្វ៖ {target_type}
 - ទម្ងន់ / អាយុ / ស្ថានភាពសត្វ៖ {extra_info or 'មិនបានបញ្ជាក់'}
 - រោគសញ្ញា៖ {symptoms or 'សូមពិនិត្យតាមរូបភាពដែលបានភ្ជាប់'}
 
-ច្បាប់មាសឱសថសាស្ត្រពេទ្យសត្វដែលត្រូវគោរពដាច់ខាតក្នុងការផ្សំថ្នាំ៖
-1. ចំណាត់ថ្នាក់ក្រុមថ្នាំផ្សះ៖
-   - **ក្រុម A (សម្លាប់បាក់តេរី / Bactericidal)៖** Beta-lactams (Penicillins: Amoxicillin, Ampicillin; Cephalosporins: Ceftiofur, Cefquinome), Aminoglycosides (Gentamicin, Streptomycin, Neomycin), Polymyxins (Colistin), Fluoroquinolones (Enrofloxacin, Marbofloxacin), Sulfonamides + Trimethoprim។
-   - **ក្រុម B (បង្អាក់ការលូតលាស់បាក់តេរី / Bacteriostatic)៖** Tetracyclines (Oxytetracycline, Doxycycline), Amphenicols (Florfenicol), Macrolides (Tylosin, Tilmicosin, Erythromycin), Lincosamides (Lincomycin), Pleuromutilins (Tiamulin)។
-2. ក្បួនផ្សំថ្នាំផ្សះ៖
-   - ✅ **ក្រុម A + ក្រុម A (បង្កើនប្រសិទ្ធភាពទ្វេដង / Synergism)៖** ឧ. Beta-lactam (Amoxicillin/Ceftiofur) + Aminoglycoside (Gentamicin/Colistin) ឬ Beta-lactam + Fluoroquinolone (Enrofloxacin)។
-   - ✅ **ក្រុម B + ក្រុម B (ជួយបំពេញបន្ថែមគ្នា / Additive)៖** ឧ. Tetracycline (Doxycycline) + Macrolide (Tylosin) ឬ Florfenicol + Doxycycline ឬ Lincomycin + Spectinomycin។ (ចំណាំ៖ ជៀសវាងផ្សំ Macrolides + Lincosamides + Florfenicol ចូលគ្នា ព្រោះដណ្តើមទីតាំងភ្ជាប់ 50S តែមួយ)។
-   - ❌ **ហាមដាច់ខាត ក្រុម A + ក្រុម B (ប្រឆាំងគ្នា / Antagonism)៖** ឧ. ហាមផ្សំ Amoxicillin/Ceftiofur ជាមួយ Oxytetracycline/Doxycycline/Florfenicol/Tylosin ព្រោះធ្វើឱ្យថ្នាំសាប និងបាក់តេរីស៊ាំថ្នាំ។
-3. ក្បួនថ្នាំរលាក និងថ្នាំជំនួយ៖
-   - ❌ ហាមផ្សំ **NSAIDs** (Flunixin, Meloxicam, Ketoprofen, Analgin) ជាមួយ **Corticosteroids** (Dexamethasone) ព្រមគ្នាដាច់ខាត។
-   - ❌ ហាមប្រើ Dexamethasone លើសត្វផើម (ធ្វើឱ្យរលូតកូន) ឬជំងឺវីរុសធ្ងន់ធ្ងរ។
-   - ❌ **ច្បាប់សឺរ៉ាំង៖** ហាមបូមថ្នាំផ្សះ ២ មុខ ឬថ្នាំផ្សះលាយជាមួយថ្នាំរលាក/កាល់ស្យូម/វីតាមីន ចូលក្នុង**សឺរ៉ាំងតែមួយ**ដាច់ខាត ត្រូវចាក់ផ្សេងសឺរ៉ាំង និងផ្សេងកន្លែង (ឧ. ក-ឆ្វេង និង ក-ស្តាំ)។
+បញ្ជីឈ្មោះថ្នាំដែលមានស្រាប់សម្រាប់ជ្រើសរើសផ្សំ៖
+{SHOP_DRUG_CATALOG}
+
+ច្បាប់មាសផ្សំថ្នាំពេទ្យសត្វដាច់ខាត (៨ ក្រុមថ្នាំផ្សះ)៖
+1. ✅ **ក្រុម A + ក្រុម A (Synergism)៖** Beta-lactam (Amoxicillin/Ampicillin/Ceftiofur) + Aminoglycoside (Gentamicin/Colistin) ឬ Beta-lactam + Fluoroquinolone (Enrofloxacin)។
+2. ✅ **ក្រុម B + ក្រុម B (Additive)៖** Florfenicol + Doxycycline, Tylosin + Doxycycline, Oxytetracycline + Tylosin ឬ Lincomycin + Spectinomycin។ (ជៀសវាងផ្សំ Florfenicol + Tylosin/Lincomycin ចូលគ្នា ព្រោះដណ្តើមទីតាំង 50S តែមួយ)។
+3. ❌ **ហាមដាច់ខាត ក្រុម A + ក្រុម B (Antagonism)៖** ធ្វើឱ្យថ្នាំប្រឆាំងគ្នា សាបប្រសិទ្ធភាព និងបាក់តេរីស៊ាំថ្នាំ។
+4. ❌ ហាមផ្សំ **NSAIDs** (Analgin, Flunixin, Meloxicam, Ketoprofen) ជាមួយ **Dexamethasone** ព្រមគ្នា និងហាមប្រើ Dexamethasone លើសត្វផើម។
+5. ❌ **ច្បាប់សឺរ៉ាំង៖** ហាមបូមថ្នាំផ្សះ ២ មុខ ឬថ្នាំផ្សះលាយជាមួយថ្នាំរលាក/Calcium B12/វីតាមីន ចូលក្នុង**សឺរ៉ាំងតែមួយ**ដាច់ខាត ត្រូវចាក់ផ្សេងសឺរ៉ាំង និងផ្សេងកន្លែង (ឧ. ក-ឆ្វេង និង ក-ស្តាំ)។
 
 សូមឆ្លើយតបតាមទម្រង់ ៥ ចំណុចខាងក្រោម៖
 
-### ១. ឈ្មោះជំងឺសង្ស័យ (ជាភាសាខ្មែរ និងឈ្មោះបច្ចេកទេសអង់គ្លេស)
+### ១. ឈ្មោះជំងឺសង្ស័យ (ខ្មែរ និងអង់គ្លេស)
 ### ២. ការវិភាគរូបភាព និងរោគសញ្ញា
-### ៣. មូលហេតុបង្កជំងឺ (បាក់តេរី / វីរុស / ប៉ារ៉ាស៊ីត / ផ្សិត / កង្វះសារធាតុចិញ្ចឹម)
-### ៤. 💊 វិធីព្យាបាល និងក្បួនផ្សំថ្នាំលម្អិត (គោរពតាមក្បួនក្រុមថ្នាំ)
-ត្រូវបង្ហាញឱ្យបានគ្រប់ ៤ ផ្នែករងខាងក្រោម៖
-- **ក. ក្បួនផ្សំថ្នាំប្រចាំករណីនេះ (ក្រុមណា + ក្រុមណា)៖**
-  - បញ្ជាក់ឱ្យច្បាស់ថាជ្រើសរើស **រូបមន្ត A + A** ឬ **រូបមន្ត B + B** ឬ **ថ្នាំទោល** + ថ្នាំបំបាត់ឈឺ/រលាកក្រុមណា + ថ្នាំជំនួយអ្វីខ្លះ និងពន្យល់មូលហេតុខ្លីៗថាហេតុអ្វីក្រុមទាំងនេះផ្សំគ្នាបានប្រសិទ្ធភាពខ្ពស់។
-  - *(បើជាជំងឺវីរុស ត្រូវបញ្ជាក់ថាគ្មានថ្នាំសម្លាប់វីរុសផ្ទាល់ទេ តែប្រើក្បួនថ្នាំផ្សះដើម្បីទប់ស្កាត់បាក់តេរីជ្រៀតជ្រែក និងផ្តោតលើថ្នាំបញ្ចុះកម្ដៅ+វីតាមីន/អេឡិចត្រូលីត)*។
-- **ខ. តារាងកាលវិភាគព្យាបាលលម្អិត៖**
-| ឈ្មោះសារធាតុសកម្ម (Generic Name) | ក្រុមថ្នាំ (Class & Group A/B/ជំនួយ) | តួនាទីព្យាបាល | កម្រិតប្រើ (mg/kg ឬ ml/kg) | វិធីប្រើ (ចាក់/លាយទឹក) & ទីតាំង | រយៈពេលព្យាបាល |
+### ៣. មូលហេតុបង្កជំងឺ
+### ៤. 💊 វិធីព្យាបាល និងឈុតថ្នាំផ្សំ ២–៣ មុខ (គោរពតាមក្បួនក្រុមថ្នាំ)
+
+- **ក. ឈុតថ្នាំផ្សំដែលអាចប្រើជាមួយគ្នាបាន (ជ្រើសរើសឈុតណាមួយប្រើ)៖**
+  បង្ហាញ **៣ ឈុតជម្រើស** ដោយឈុតនីមួយៗផ្សំ **២ ទៅ ៣ មុខ** ឱ្យច្បាស់លាស់តាមទម្រង់នេះ៖
+  * **🥇 ឈុតទី ១ (ឈុតអាទិភាព - រូបមន្ត A+A ឬ B+B)៖** `ឈ្មោះថ្នាំទី ១` + `ឈ្មោះថ្នាំទី ២` + `ឈ្មោះថ្នាំទី ៣ (ថ្នាំរលាក/កម្ដៅ ឬវីតាមីន)`
+    * *ប្រសិទ្ធភាព៖* ពន្យល់ខ្លី ១ ប្រយោគថាហេតុអ្វី ២–៣ មុខនេះផ្សំគ្នាត្រូវជំងឺ។
+  * **🥈 ឈុតទី ២ (ឈុតជំនួស ២–៣ មុខ)៖** `ឈ្មោះថ្នាំទី ១` + `ឈ្មោះថ្នាំទី ២` + `ឈ្មោះថ្នាំទី ៣`
+    * *ប្រសិទ្ធភាព៖* ពន្យល់ខ្លី ១ ប្រយោគ (ប្រើពេលរកឈុតទី ១ មិនបាន ឬធ្លាប់ប្រើឈុតទី ១ ហើយមិនបាត់)។
+  * **🥉 ឈុតទី ៣ (ឈុតសង្គ្រោះធ្ងន់ធ្ងរ ឬឈុតសន្សំសំចៃ ២–៣ មុខ)៖** `ឈ្មោះថ្នាំទី ១` + `ឈ្មោះថ្នាំទី ២` (+ `ឈ្មោះថ្នាំទី ៣`)
+    * *ប្រសិទ្ធភាព៖* ពន្យល់ខ្លី ១ ប្រយោគ។
+
+- **ខ. តារាងកម្រិតប្រើប្រាស់លម្អិត (សម្រាប់ឈុតទី ១)៖**
+| ឈ្មោះថ្នាំ | ក្រុមថ្នាំ (A/B/ជំនួយ) | តួនាទី | កម្រិតប្រើ (mg/kg ឬ ml/kg) | វិធីប្រើ & ទីតាំង | រយៈពេល |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | ... | ... | ... | ... | ... | ... |
-- **គ. ជម្រើសក្បួនផ្សំទី ២ (សម្រាប់ករណីស៊ាំថ្នាំ ឬរកថ្នាំទី ១ មិនបាន)៖**
-  - បញ្ជាក់ឈ្មោះថ្នាំ និងក្រុមថ្នាំដែលផ្សំគ្នាបាន (ឧ. ក្រុមណា + ក្រុមណា)។
-- **ឃ. ⛔ ក្រុមថ្នាំហាមផ្សំ និងការប្រុងប្រយ័ត្នដាច់ខាត៖**
-  - បញ្ជាក់ឱ្យច្បាស់ថា **ហាមយកថ្នាំក្នុងតារាងខាងលើទៅផ្សំជាមួយក្រុមណាខ្លះ** (ឧ. ហាមផ្សំក្រុម A ជាមួយ B ឈ្មោះអ្វីខ្លះ, ហាមលាយសឺរ៉ាំងតែមួយ, ការព្រមានលើសត្វផើម)។
-  - បញ្ជាក់ **រយៈពេលឈប់ប្រើថ្នាំមុនលក់សាច់/ស៊ុត/ទឹកដោះ (Withdrawal Time)**។
+
+- **គ. ⛔ ក្រុមថ្នាំហាមផ្សំ និងការប្រុងប្រយ័ត្ន៖**
+  - បញ្ជាក់ឈ្មោះថ្នាំដែល**ហាមផ្សំ**ជាមួយឈុតខាងលើ ការហាមលាយសឺរ៉ាំងតែមួយ ការព្រមានលើសត្វផើម និង**រយៈពេលឈប់ប្រើថ្នាំមុនលក់សាច់/ស៊ុត/ទឹកដោះ (Withdrawal Time)**។
 
 ### ៥. 🛡️ វិធានការការពារ និងការគ្រប់គ្រងទ្រុង
 """
@@ -202,27 +214,26 @@ def analyze_with_ai(target_type, extra_info, symptoms, images, key, mode):
         prompt = f"""អ្នកគឺជាអ្នកជំនាញក្សេត្រសាស្ត្រកម្រិតស្តង់ដារអន្តរជាតិ ប្រចាំហាង «ដើមកសិកម្ម»។
 សូមធ្វើការវិភាគករណីដំណាំខាងក្រោមជាភាសាខ្មែរឱ្យលម្អិត និងងាយស្រួលអនុវត្ត៖
 - ប្រភេទដំណាំ៖ {target_type}
-- ដំណាក់កាលលូតលាស់ / ផ្ទៃដី៖ {extra_info or 'មិនបានបញ្ជាក់'}
+- ដំណាក់កាលដំណាំ៖ {extra_info or 'មិនបានបញ្ជាក់'}
 - រោគសញ្ញា៖ {symptoms or 'សូមពិនិត្យតាមរូបភាពដែលបានភ្ជាប់'}
 
 សូមឆ្លើយតបតាមទម្រង់ ៥ ចំណុចខាងក្រោម៖
 
-### ១. ឈ្មោះជំងឺ / សត្វល្អិតចង្រៃ / បញ្ហាដំណាំ (ខ្មែរ និងអង់គ្លេស)
+### ១. ឈ្មោះជំងឺ / សត្វល្អិតចង្រៃ (ខ្មែរ និងអង់គ្លេស)
 ### ២. ការវិភាគរូបភាព និងរោគសញ្ញា
-### ៣. មូលហេតុបង្ក (ផ្សិត / បាក់តេរី / វីរុស / សត្វល្អិត / កង្វះជីជាតិ)
-### ៤. 🌿 វិធីសង្គ្រោះ និងក្បួនផ្សំថ្នាំកសិកម្មលម្អិត (Tank-Mix & Resistance Rules)
-ត្រូវបង្ហាញឱ្យបានគ្រប់ ៤ ផ្នែករងខាងក្រោម៖
-- **ក. ក្បួនផ្សំថ្នាំបាញ់ប្រចាំករណីនេះ (ក្រុមណា + ក្រុមណា)៖**
-  - បញ្ជាក់ការផ្សំសារធាតុសកម្មដែលជួយបង្កើនប្រសិទ្ធភាពគ្នា (ឧ. ថ្នាំផ្សិតប្រភេទជ្រាបចូល Systemic + ថ្នាំប្រភេទប៉ះផ្ទាល់ Contact ឬ ថ្នាំសត្វល្អិតក្រុម IRAC ណា + ក្រុមណា) ដើម្បីការពារការស៊ាំថ្នាំ។
-- **ខ. តារាងកម្រិតលាយថ្នាំ និងកាលវិភាគបាញ់៖**
-| ឈ្មោះសារធាតុសកម្ម (Active Ingredient) | ក្រុមថ្នាំ (FRAC / IRAC) | តួនាទីកម្ចាត់/ជំនួយ | កម្រិតលាយ (ក្នុងទឹក ១៦–២០ លីត្រ) | ចន្លោះថ្ងៃបាញ់ |
+### ៣. មូលហេតុបង្ក
+### ៤. 🌿 វិធីសង្គ្រោះ និងឈុតថ្នាំផ្សំបាញ់ ២–៣ មុខ (FRAC / IRAC)
+- **ក. ឈុតថ្នាំផ្សំបាញ់ដែលអាចលាយចូលគ្នាបាន៖**
+  * **🥇 ឈុតទី ១ (ឈុតអាទិភាព ២–៣ មុខ)៖** `ថ្នាំទី ១` + `ថ្នាំទី ២` + `ថ្នាំជំនួយ/ថ្នាំស្អិត`
+    * *ប្រសិទ្ធភាព៖* ពន្យល់ខ្លី ១ ប្រយោគ។
+  * **🥈 ឈុតទី ២ (ឈុតបង្វិលក្រុមការពារស៊ាំថ្នាំ ២–៣ មុខ)៖** `ថ្នាំទី ១` + `ថ្នាំទី ២` + `ថ្នាំជំនួយ/ថ្នាំស្អិត`
+    * *ប្រសិទ្ធភាព៖* ពន្យល់ខ្លី ១ ប្រយោគ។
+- **ខ. តារាងកម្រិតលាយថ្នាំ (សម្រាប់ឈុតទី ១)៖**
+| ឈ្មោះសារធាតុសកម្ម | ក្រុមថ្នាំ (FRAC/IRAC) | តួនាទី | កម្រិតលាយ (ក្នុងទឹក ១៦–២០ លីត្រ) | ចន្លោះថ្ងៃបាញ់ |
 | :--- | :--- | :--- | :--- | :--- |
 | ... | ... | ... | ... | ... |
-- **គ. លំដាប់លាយថ្នាំក្នុងធុងបាញ់ (W-A-L-E-S) និងការបង្វិលក្រុមថ្នាំ៖**
-  - ណែនាំលំដាប់ចាក់ថ្នាំចូលទឹក (ម្សៅ WP/WDG -> ទឹកខាប់ SC -> ទឹកថ្លា SL/EC -> ជីបំប៉នស្លឹក -> ថ្នាំស្អិត) និងក្រុមថ្នាំសម្រាប់ប្តូរវេនបាញ់លើកក្រោយ។
-- **ឃ. ⛔ ក្រុមថ្នាំហាមលាយចូលគ្នា និងរយៈពេលឈប់បាញ់មុនប្រមូលផល (PHI)៖**
-  - បញ្ជាក់ក្រុមថ្នាំដែល**ហាមលាយចូលធុងតែមួយ** (ឧ. ហាមលាយថ្នាំទង់ដែង/ស្ពាន់ធ័រជាមួយថ្នាំគីមីប្រតិកម្មអាស៊ីត ឬហាមលាយថ្នាំផ្សិតគីមីជាមួយផ្សិតជីវសាស្ត្រ Trichoderma ឬកាល់ស្យូមលាយផូស្វ័រ)។
-  - បញ្ជាក់ចំនួនថ្ងៃឈប់បាញ់មុនប្រមូលផល (PHI)។
+- **គ. លំដាប់លាយថ្នាំ (W-A-L-E-S) ក្រុមហាមលាយ និងរយៈពេលឈប់បាញ់មុនប្រមូលផល (PHI)៖**
+  - ណែនាំលំដាប់លាយ (ម្សៅ WP/WDG -> ទឹកខាប់ SC -> ទឹកថ្លា SL/EC -> ជីបំប៉នស្លឹក -> ថ្នាំស្អិត) ក្រុមថ្នាំហាមលាយចូលធុងតែមួយ និងចំនួនថ្ងៃឈប់បាញ់មុនប្រមូលផល។
 
 ### ៥. 🛡️ វិធានការការពារ និងការថែទាំដី/ចម្ការ
 """
@@ -232,7 +243,7 @@ def analyze_with_ai(target_type, extra_info, symptoms, images, key, mode):
     response = client.models.generate_content(
         model="gemini-2.5-flash",
         contents=contents_list,
-        config=types.GenerateContentConfig(temperature=0.2)
+        config=types.GenerateContentConfig(temperature=0.2),
     )
     return response.text
 
@@ -247,20 +258,20 @@ with st.container():
         input_type = c1.text_input(
             "ប្រភេទសត្វ (ឧ. មាន់, គោ, ជ្រូក, ទា...) ៖",
             placeholder="វាយបញ្ចូលទីនេះ...",
-            key="animal_input"
+            key="animal_input",
         )
         extra_info = c2.text_input(
             "ទម្ងន់ / អាយុ / ស្ថានភាព (ជាការស្រេចចិត្ត)៖",
             placeholder="ឧ. ជ្រូក ២៥kg, មេជ្រូកផើម, មាន់ ១.៥kg...",
-            key="animal_extra"
+            key="animal_extra",
         )
         symptoms_input = st.text_area(
             "រៀបរាប់ពីរោគសញ្ញា ឬអាការៈសត្វ៖",
             height=120,
             placeholder="ឧទាហរណ៍៖ សត្វអត់ស៊ីចំណី, ក្ដៅខ្លួន, ក្អកហត់, រាកស...",
-            key="animal_symptoms"
+            key="animal_symptoms",
         )
-        btn_text = "🔍 ចាប់ផ្តើមវិភាគជំងឺ និងរៀបចំក្បួនផ្សំថ្នាំសត្វ"
+        btn_text = "🔍 ចាប់ផ្តើមវិភាគជំងឺ និងរៀបចំឈុតផ្សំថ្នាំសត្វ"
         mode_flag = "animal"
     else:
         st.subheader("១. បញ្ចូលព័ត៌មាន និងរោគសញ្ញាដំណាំ")
@@ -268,23 +279,22 @@ with st.container():
         input_type = c1.text_input(
             "ប្រភេទដំណាំ (ឧ. ស្រូវ, ស្វាយ, ម្រេច, បន្លែ...) ៖",
             placeholder="វាយបញ្ចូលទីនេះ...",
-            key="plant_input"
+            key="plant_input",
         )
         extra_info = c2.text_input(
             "ដំណាក់កាលដំណាំ (ជាការស្រេចចិត្ត)៖",
             placeholder="ឧ. កំពុងបែកគុម្ព, កំពុងចេញផ្កា, ជិតប្រមូលផល...",
-            key="plant_extra"
+            key="plant_extra",
         )
         symptoms_input = st.text_area(
             "រៀបរាប់ពីរោគសញ្ញា៖",
             height=120,
             placeholder="ឧទាហរណ៍៖ ស្លឹកឡើងលឿងប្រឆុះ, ជាំចុងស្លឹក, មានដង្កូវស៊ីស្លឹក...",
-            key="plant_symptoms"
+            key="plant_symptoms",
         )
-        btn_text = "🔍 ចាប់ផ្តើមវិភាគជំងឺ និងរៀបចំក្បួនផ្សំថ្នាំដំណាំ"
+        btn_text = "🔍 ចាប់ផ្តើមវិភាគជំងឺ និងរៀបចំឈុតផ្សំថ្នាំដំណាំ"
         mode_flag = "plant"
 
-# រៀបចំកន្លែងដាក់រូបភាពជា Tabs
 st.write("---")
 st.subheader("📸 ២. បញ្ចូលរូបភាព (ជាការស្រេចចិត្ត)")
 tab1, tab2 = st.tabs(["📷 ថតរូបផ្ទាល់ពីកាមេរ៉ា", "📁 ជ្រើសរើសពីរូបថតដែលមានស្រាប់"])
@@ -295,7 +305,7 @@ with tab2:
     uploaded_files = st.file_uploader(
         "ជ្រើសរើសរូបភាព (អាចរើសបានច្រើនសន្លឹក)៖",
         type=["png", "jpg", "jpeg", "jfif", "webp"],
-        accept_multiple_files=True
+        accept_multiple_files=True,
     )
 
 all_photos = []
@@ -327,7 +337,7 @@ if st.button(btn_text, type="primary", use_container_width=True):
     elif not symptoms_input.strip() and not all_photos:
         st.warning("⚠ សូមរៀបរាប់ពីរោគសញ្ញា ឬបញ្ចូលរូបភាពយ៉ាងហោចណាស់មួយ!")
     else:
-        with st.spinner("⏳ ប្រព័ន្ធ AI កំពុងវិភាគជំងឺ និងផ្ទៀងផ្ទាត់ក្បួនផ្សំថ្នាំតាមក្រុម... សូមរង់ចាំបន្តិច!"):
+        with st.spinner("⏳ ប្រព័ន្ធ AI កំពុងវិភាគជំងឺ និងផ្គូផ្គងឈុតផ្សំថ្នាំ... សូមរង់ចាំបន្តិច!"):
             try:
                 result = analyze_with_ai(
                     input_type, extra_info, symptoms_input, optimized_images, api_key, mode_flag
@@ -353,10 +363,10 @@ if st.session_state["last_result"]:
     result = st.session_state["last_result"]
     meta = st.session_state["last_meta"]
 
-    st.success("✅ ការវិភាគ និងក្បួនផ្សំថ្នាំទទួលបានជោគជ័យ!")
+    st.success("✅ ការវិភាគ និងឈុតផ្សំថ្នាំទទួលបានជោគជ័យ!")
 
     with st.container(border=True):
-        st.subheader("📋 វេជ្ជបញ្ជា និងក្បួនផ្សំថ្នាំលម្អិត")
+        st.subheader("📋 វេជ្ជបញ្ជា និងឈុតផ្សំថ្នាំលម្អិត")
         st.markdown(result)
 
     st.write("---")
@@ -371,14 +381,14 @@ if st.session_state["last_result"]:
             f"ប្រភេទ៖ {meta.get('type', '')}\n"
             f"ទម្ងន់/ស្ថានភាព៖ {meta.get('extra', 'មិនបានបញ្ជាក់')}\n"
             f"រោគសញ្ញា៖ {meta.get('symptoms', '')}\n\n"
-            f"លទ្ធផលវិភាគ និងក្បួនផ្សំថ្នាំ៖\n{result}"
+            f"លទ្ធផលវិភាគ និងឈុតផ្សំថ្នាំ៖\n{result}"
         )
         st.download_button(
             label="📥 ទាញយកជាឯកសារ (.txt)",
             data=export_text.encode("utf-8"),
             file_name=f"Diagnosis_{meta.get('type', 'report')}_{datetime.datetime.now().strftime('%Y%m%d_%H%M')}.txt",
             mime="text/plain",
-            use_container_width=True
+            use_container_width=True,
         )
     with c_clr:
         if st.button("🗑️ សម្អាតលទ្ធផលចាស់", use_container_width=True):
